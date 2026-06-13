@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Base Airdrop Checker</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+:root {
+  --bg: #080a0f;
+  --surface: #0f1218;
+  --surface2: #161b24;
+  --border: #1a2030;
+  --border2: #222840;
+  --blue: #0052ff;
+  --blue-dim: #003ecc;
+  --blue-glow: rgba(0,82,255,0.18);
+  --cyan: #00c8ff;
+  --green: #00e87a;
+  --yellow: #ffc400;
+  --red: #ff3355;
+  --gold: #ffd700;
+  --silver: #c0c0c0;
+  --bronze: #cd7f32;
+  --text: #dde2f0;
+  --text-dim: #5a6480;
+  --text-muted: #2e3550;
+  --font: 'Space Grotesk', sans-serif;
+  --mono: 'Space Mono', monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; }
+body::before {
+  content: ''; position: fixed; inset: 0;
+  background-image: linear-gradient(rgba(0,82,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(0,82,255,0.025) 1px, transparent 1px);
+  background-size: 44px 44px; pointer-events: none;
+}
+.wrap { position: relative; max-width: 800px; margin: 0 auto; padding: 40px 20px 80px; }
+
+/* Header */
+.header { display: flex; align-items: center; gap: 14px; margin-bottom: 36px; }
+.logo { width: 46px; height: 46px; background: var(--blue); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; box-shadow: 0 0 32px var(--blue-glow); flex-shrink: 0; }
+.header-text h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.4px; }
+.header-text h1 span { color: var(--blue); }
+.header-text p { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-top: 3px; }
+
+/* Search */
+.search-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 18px; margin-bottom: 16px; }
+.search-row { display: flex; gap: 10px; }
+.addr-input { flex: 1; background: var(--bg); border: 1px solid var(--border2); border-radius: 10px; color: var(--text); font-family: var(--mono); font-size: 13px; padding: 12px 14px; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+.addr-input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(0,82,255,0.1); }
+.addr-input::placeholder { color: var(--text-muted); }
+.btn-check { background: var(--blue); color: #fff; border: none; border-radius: 10px; font-family: var(--font); font-weight: 600; font-size: 14px; padding: 12px 22px; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 7px; white-space: nowrap; box-shadow: 0 0 20px var(--blue-glow); }
+.btn-check:hover:not(:disabled) { background: var(--blue-dim); transform: translateY(-1px); }
+.btn-check:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+/* Batch toggle */
+.batch-toggle { margin-top: 10px; font-size: 12px; font-family: var(--mono); color: var(--text-dim); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; border: none; background: none; transition: color 0.15s; padding: 3px 0; }
+.batch-toggle:hover { color: var(--cyan); }
+.batch-area { display: none; margin-top: 12px; }
+.batch-area.open { display: block; }
+.batch-textarea { width: 100%; height: 90px; background: var(--bg); border: 1px solid var(--border2); border-radius: 10px; color: var(--text); font-family: var(--mono); font-size: 12px; padding: 11px 14px; resize: vertical; outline: none; }
+.batch-textarea:focus { border-color: var(--blue); }
+.batch-textarea::placeholder { color: var(--text-muted); }
+.batch-acts { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.btn-sm { font-family: var(--font); font-size: 12px; font-weight: 500; padding: 7px 14px; border-radius: 8px; border: 1px solid var(--border2); background: var(--surface2); color: var(--text-dim); cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 5px; }
+.btn-sm:hover { color: var(--text); border-color: var(--blue); }
+.btn-sm.export { color: var(--green); border-color: rgba(0,232,122,0.2); }
+.btn-sm.export:hover { background: rgba(0,232,122,0.06); }
+
+/* Error */
+.error-card { display: none; background: rgba(255,51,85,0.06); border: 1px solid rgba(255,51,85,0.2); border-radius: 12px; padding: 14px 18px; font-family: var(--mono); font-size: 12px; color: var(--red); margin-bottom: 14px; }
+.error-card.show { display: block; }
+
+/* Loading */
+.loading-card { display: none; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 36px 24px; margin-bottom: 16px; text-align: center; }
+.loading-card.show { display: block; }
+.spinner-ring { width: 40px; height: 40px; border: 3px solid var(--border2); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-addr { font-family: var(--mono); font-size: 11px; color: var(--text-dim); }
+
+/* Progress batch */
+.progress-card { display: none; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 18px 22px; margin-bottom: 16px; }
+.progress-card.show { display: block; }
+.prog-top { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 12px; margin-bottom: 8px; }
+.prog-top span:last-child { color: var(--blue); font-weight: 700; }
+.prog-top span:first-child { color: var(--text-dim); }
+.prog-bar-bg { height: 3px; background: var(--border2); border-radius: 3px; overflow: hidden; }
+.prog-bar-fill { height: 100%; background: var(--blue); box-shadow: 0 0 8px var(--blue); border-radius: 3px; transition: width 0.3s; }
+.prog-log { margin-top: 7px; font-family: var(--mono); font-size: 10px; color: var(--text-muted); height: 13px; overflow: hidden; }
+
+/* ─── RESULT CARD ─── */
+.result-card { display: none; margin-bottom: 16px; }
+.result-card.show { display: block; }
+
+/* Tier banner */
+.tier-banner {
+  border-radius: 16px 16px 0 0;
+  padding: 20px 24px;
+  display: flex; align-items: center; gap: 16px;
+  border: 1px solid var(--border); border-bottom: none;
+}
+.tier-banner.gold-bg   { background: linear-gradient(135deg, rgba(255,215,0,0.08), rgba(255,165,0,0.04)); border-color: rgba(255,215,0,0.25); }
+.tier-banner.silver-bg { background: linear-gradient(135deg, rgba(192,192,192,0.08), rgba(150,150,150,0.04)); border-color: rgba(192,192,192,0.2); }
+.tier-banner.bronze-bg { background: linear-gradient(135deg, rgba(205,127,50,0.08), rgba(180,100,20,0.04)); border-color: rgba(205,127,50,0.2); }
+.tier-banner.dim-bg    { background: var(--surface); border-color: var(--border); }
+.tier-banner.red-bg    { background: rgba(255,51,85,0.05); border-color: rgba(255,51,85,0.2); }
+
+.tier-icon { font-size: 36px; line-height: 1; flex-shrink: 0; }
+.tier-info { flex: 1; }
+.tier-label-text { font-size: 20px; font-weight: 700; }
+.tier-label-text.gold   { color: var(--gold); }
+.tier-label-text.silver { color: var(--silver); }
+.tier-label-text.bronze { color: var(--bronze); }
+.tier-label-text.dim    { color: var(--text-dim); }
+.tier-label-text.red    { color: var(--red); }
+.tier-est { font-family: var(--mono); font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+.tier-est strong { font-size: 15px; }
+.tier-est.gold   strong { color: var(--gold); }
+.tier-est.silver strong { color: var(--silver); }
+.tier-est.bronze strong { color: var(--bronze); }
+
+.sybil-badge { font-family: var(--mono); font-size: 11px; text-align: right; }
+.sybil-badge .risk-lbl { font-size: 13px; font-weight: 700; }
+.sybil-badge .risk-sub { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+
+/* Result body */
+.result-body { background: var(--surface); border: 1px solid var(--border); border-top: none; border-radius: 0 0 16px 16px; overflow: hidden; }
+
+/* Addr row */
+.addr-row { padding: 12px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.addr-text { font-family: var(--mono); font-size: 12px; color: var(--text-dim); flex: 1; word-break: break-all; }
+.addr-text a { color: var(--cyan); text-decoration: none; }
+.addr-text a:hover { text-decoration: underline; }
+
+/* Score bar */
+.score-row { padding: 14px 24px; border-bottom: 1px solid var(--border); }
+.score-top { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-bottom: 6px; }
+.score-num-big { font-size: 22px; font-weight: 700; font-family: var(--mono); }
+.score-bar-bg { height: 5px; background: var(--border2); border-radius: 5px; overflow: hidden; margin-top: 6px; }
+.score-bar-fill { height: 100%; border-radius: 5px; transition: width 0.8s cubic-bezier(0.22,1,0.36,1); }
+
+/* Metrics grid */
+.metrics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); border-bottom: 1px solid var(--border); }
+.metric { background: var(--surface); padding: 14px 16px; }
+.metric-lbl { font-size: 10px; font-family: var(--mono); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; }
+.metric-val { font-size: 18px; font-weight: 700; font-family: var(--mono); line-height: 1; }
+.metric-sub { font-size: 10px; color: var(--text-dim); margin-top: 3px; font-family: var(--mono); }
+.c-green { color: var(--green); } .c-yellow { color: var(--yellow); } .c-red { color: var(--red); }
+.c-blue { color: var(--blue); } .c-dim { color: var(--text-dim); } .c-gold { color: var(--gold); }
+
+/* ─── CHECKLIST ─── */
+.checklist-section { padding: 18px 24px; border-bottom: 1px solid var(--border); }
+.section-title { font-size: 10px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
+.section-title span { color: var(--text-dim); }
+
+.checklist-progress { margin-bottom: 14px; }
+.cl-prog-top { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 11px; margin-bottom: 6px; }
+.cl-prog-top .left { color: var(--text-dim); }
+.cl-prog-top .right { color: var(--green); font-weight: 700; }
+.cl-bar-bg { height: 4px; background: var(--border2); border-radius: 4px; overflow: hidden; }
+.cl-bar-fill { height: 100%; background: var(--green); box-shadow: 0 0 6px rgba(0,232,122,0.4); border-radius: 4px; transition: width 0.8s cubic-bezier(0.22,1,0.36,1); }
+
+.checklist-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.cl-item { display: flex; align-items: flex-start; gap: 9px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); transition: border-color 0.15s; }
+.cl-item.done { border-color: rgba(0,232,122,0.2); background: rgba(0,232,122,0.03); }
+.cl-item.todo { opacity: 0.6; }
+.cl-check { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--border2); display: flex; align-items: center; justify-content: center; font-size: 10px; flex-shrink: 0; margin-top: 1px; }
+.cl-item.done .cl-check { background: var(--green); border-color: var(--green); color: #000; }
+.cl-text { flex: 1; min-width: 0; }
+.cl-label { font-size: 12px; font-weight: 500; color: var(--text); line-height: 1.2; }
+.cl-item.done .cl-label { color: var(--green); }
+.cl-tip { font-size: 10px; color: var(--text-muted); margin-top: 2px; font-family: var(--mono); line-height: 1.3; }
+.cl-pts { font-size: 10px; font-family: var(--mono); color: var(--text-muted); margin-top: 3px; white-space: nowrap; }
+.cl-item.done .cl-pts { color: var(--green); }
+
+/* Flags */
+.flags-section { padding: 14px 24px; border-bottom: 1px solid var(--border); }
+.flags-wrap { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+.flag-chip { font-size: 11px; font-family: var(--mono); padding: 3px 9px; border-radius: 5px; background: rgba(255,51,85,0.07); color: var(--red); border: 1px solid rgba(255,51,85,0.15); }
+.flag-chip.ok { background: rgba(0,232,122,0.07); color: var(--green); border-color: rgba(0,232,122,0.2); }
+
+/* Extra info */
+.extra-row { padding: 12px 24px; display: flex; flex-wrap: wrap; gap: 20px; }
+.extra-item { font-family: var(--mono); font-size: 11px; }
+.extra-item span { color: var(--text-muted); }
+.extra-item strong { color: var(--text-dim); margin-left: 5px; }
+
+/* ─── BATCH ─── */
+.stats-strip { display: none; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+.stats-strip.show { display: grid; }
+.stat-box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+.stat-box .lbl { font-size: 10px; font-family: var(--mono); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.stat-box .val { font-size: 22px; font-weight: 700; font-family: var(--mono); }
+
+.batch-results { display: none; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+.batch-results.show { display: block; }
+.batch-hdr { padding: 12px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.batch-hdr-title { font-size: 11px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-dim); }
+.filter-tabs { display: flex; gap: 5px; }
+.ftab { font-size: 11px; font-family: var(--mono); padding: 3px 9px; border-radius: 20px; cursor: pointer; border: 1px solid var(--border2); background: transparent; color: var(--text-dim); transition: all 0.15s; }
+.ftab.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+.ftab:hover:not(.active) { border-color: var(--blue); color: var(--blue); }
+
+.table-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+thead tr { border-bottom: 1px solid var(--border); }
+th { padding: 8px 12px; text-align: left; font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--text-muted); font-weight: 400; white-space: nowrap; }
+tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: var(--surface2); }
+td { padding: 9px 12px; font-family: var(--mono); font-size: 11px; white-space: nowrap; }
+
+.risk-badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600; font-family: var(--mono); }
+.rb-low    { background: rgba(0,232,122,0.1); color: var(--green); border: 1px solid rgba(0,232,122,0.2); }
+.rb-medium { background: rgba(255,196,0,0.1); color: var(--yellow); border: 1px solid rgba(255,196,0,0.2); }
+.rb-high   { background: rgba(255,51,85,0.1); color: var(--red); border: 1px solid rgba(255,51,85,0.2); }
+
+.sbar { display: flex; align-items: center; gap: 6px; min-width: 80px; }
+.sbar-bg { flex: 1; height: 3px; background: var(--border2); border-radius: 3px; overflow: hidden; }
+.sbar-fill { height: 100%; border-radius: 3px; }
+.sbar-num { font-size: 10px; min-width: 22px; text-align: right; }
+
+.addr-cell a { color: var(--text-dim); text-decoration: none; font-size: 11px; }
+.addr-cell a:hover { color: var(--cyan); }
+
+/* Disclaimer */
+.disclaimer { margin-top: 24px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 10px; font-family: var(--mono); font-size: 10px; color: var(--text-muted); line-height: 1.6; }
+.disclaimer strong { color: var(--text-dim); }
+
+@media (max-width: 560px) {
+  .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+  .checklist-grid { grid-template-columns: 1fr; }
+  .stats-strip { grid-template-columns: repeat(2, 1fr); }
+  .search-row { flex-direction: column; }
+  .btn-check { justify-content: center; }
+  .tier-banner { flex-wrap: wrap; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="header">
+    <div class="logo">🔍</div>
+    <div class="header-text">
+      <h1>Base <span>Airdrop</span> Checker</h1>
+      <p>eligibility · tier estimasi · sybil filter · base mainnet</p>
+    </div>
+  </div>
+
+  <div class="search-card">
+    <div class="search-row">
+      <input class="addr-input" id="singleInput" type="text" placeholder="0x... masukkan wallet address" onkeydown="if(event.key==='Enter') checkSingle()" />
+      <button class="btn-check" id="checkBtn" onclick="checkSingle()">
+        <span id="checkBtnIcon">⚡</span>
+        <span id="checkBtnText">Check</span>
+      </button>
+    </div>
+    <button class="batch-toggle" onclick="toggleBatch()" id="batchToggle">▸ Batch mode</button>
+    <div class="batch-area" id="batchArea">
+      <textarea class="batch-textarea" id="batchInput" placeholder="Paste addresses satu per baris...&#10;0x1234...&#10;0xabcd..."></textarea>
+      <div class="batch-acts">
+        <button class="btn-sm" onclick="checkBatch()">⚡ Analyze All</button>
+        <button class="btn-sm" onclick="loadSample()">Load Sample</button>
+        <button class="btn-sm export" id="exportBtn" onclick="exportCSV()" style="display:none">↓ Export CSV</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="error-card" id="errorCard"></div>
+  <div class="loading-card" id="loadingCard">
+    <div class="spinner-ring"></div>
+    <div class="loading-addr" id="loadingAddr">Fetching on-chain data...</div>
+  </div>
+  <div class="progress-card" id="progressCard">
+    <div class="prog-top"><span id="progLabel">Analyzing...</span><span id="progCount">0/0</span></div>
+    <div class="prog-bar-bg"><div class="prog-bar-fill" id="progBar" style="width:0%"></div></div>
+    <div class="prog-log" id="progLog"></div>
+  </div>
+
+  <!-- Single result -->
+  <div class="result-card" id="resultCard">
+    <!-- Tier banner -->
+    <div class="tier-banner" id="tierBanner">
+      <div class="tier-icon" id="tierIcon">—</div>
+      <div class="tier-info">
+        <div class="tier-label-text" id="tierLabelText">—</div>
+        <div class="tier-est" id="tierEst">—</div>
+      </div>
+      <div class="sybil-badge" id="sybilBadge"></div>
+    </div>
+    <div class="result-body">
+      <div class="addr-row">
+        <div class="addr-text" id="resultAddr">—</div>
+      </div>
+      <!-- Score -->
+      <div class="score-row">
+        <div class="score-top">
+          <span>SYBIL RISK SCORE</span>
+          <span id="scoreText">—</span>
+        </div>
+        <div id="scoreBig" class="score-num-big">—</div>
+        <div class="score-bar-bg"><div class="score-bar-fill" id="scoreFill" style="width:0%"></div></div>
+      </div>
+      <!-- Metrics -->
+      <div class="metrics-grid" id="metricsGrid"></div>
+      <!-- Checklist -->
+      <div class="checklist-section" id="checklistSection"></div>
+      <!-- Flags -->
+      <div class="flags-section" id="flagsSection"></div>
+      <!-- Extra -->
+      <div class="extra-row" id="extraRow"></div>
+    </div>
+  </div>
+
+  <!-- Batch -->
+  <div class="stats-strip" id="statsStrip">
+    <div class="stat-box"><div class="lbl">Total</div><div class="val c-blue" id="st-total">0</div></div>
+    <div class="stat-box"><div class="lbl">✅ Pass</div><div class="val c-green" id="st-pass">0</div></div>
+    <div class="stat-box"><div class="lbl">⚠️ Suspect</div><div class="val c-yellow" id="st-med">0</div></div>
+    <div class="stat-box"><div class="lbl">🚨 Sybil</div><div class="val c-red" id="st-high">0</div></div>
+  </div>
+
+  <div class="batch-results" id="batchResults">
+    <div class="batch-hdr">
+      <div class="batch-hdr-title">Batch Results</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div class="filter-tabs">
+          <button class="ftab active" onclick="setFilter('all',this)">All</button>
+          <button class="ftab" onclick="setFilter('low',this)">✅ Pass</button>
+          <button class="ftab" onclick="setFilter('medium',this)">⚠️</button>
+          <button class="ftab" onclick="setFilter('high',this)">🚨</button>
+        </div>
+        <button class="btn-sm export" id="exportBtn2" onclick="exportCSV()" style="display:none">↓ CSV</button>
+      </div>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Address</th><th>Tier</th><th>Est. Alloc</th>
+            <th>Sybil Risk</th><th>Score</th><th>Age</th><th>Txns</th>
+            <th>Checklist</th>
+          </tr>
+        </thead>
+        <tbody id="batchTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="disclaimer">
+    <strong>⚠️ Disclaimer:</strong> Estimasi alokasi bersifat spekulatif berdasarkan pola airdrop L2 sebelumnya (OP, ARB). Base belum announce kriteria resmi. Tier & angka dapat berubah signifikan saat announcement resmi.
+  </div>
+
+</div>
+
+<script>
+let batchResults = [];
+let filterMode = 'all';
+let batchOpen = false;
+
+const TIER_CONFIG = {
+  gold:   { bgClass: 'gold-bg',   textClass: 'gold',   icon: '🥇' },
+  silver: { bgClass: 'silver-bg', textClass: 'silver', icon: '🥈' },
+  bronze: { bgClass: 'bronze-bg', textClass: 'bronze', icon: '🥉' },
+  dim:    { bgClass: 'dim-bg',    textClass: 'dim',    icon: '📋' },
+  red:    { bgClass: 'red-bg',    textClass: 'red',    icon: '🚫' },
+};
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function parseAddrs(raw) {
+  return [...new Set(raw.split(/[\n,\s]+/).map(a=>a.trim()).filter(a=>/^0x[0-9a-fA-F]{40}$/.test(a)))];
+}
+function showError(msg) {
+  const el = document.getElementById('errorCard');
+  el.textContent = '⚠️ ' + msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 6000);
+}
+function toggleBatch() {
+  batchOpen = !batchOpen;
+  document.getElementById('batchArea').classList.toggle('open', batchOpen);
+  document.getElementById('batchToggle').textContent = (batchOpen?'▾':'▸') + ' Batch mode';
+}
+
+async function checkSingle() {
+  const addr = document.getElementById('singleInput').value.trim();
+  if (!/^0x[0-9a-fA-F]{40}$/.test(addr)) { showError('Format address tidak valid.'); return; }
+
+  document.getElementById('resultCard').classList.remove('show');
+  document.getElementById('batchResults').classList.remove('show');
+  document.getElementById('statsStrip').classList.remove('show');
+  document.getElementById('loadingCard').classList.add('show');
+  document.getElementById('loadingAddr').textContent = 'Fetching: ' + addr.slice(0,10) + '...' + addr.slice(-6);
+  document.getElementById('checkBtn').disabled = true;
+  document.getElementById('checkBtnIcon').innerHTML = '<span style="display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,0.25);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite"></span>';
+  document.getElementById('checkBtnText').textContent = 'Checking...';
+
+  try {
+    const data = await fetchCheck(addr);
+    renderSingle(data);
+  } catch(e) {
+    showError(e.message || 'Gagal fetch data. Coba lagi.');
+  } finally {
+    document.getElementById('loadingCard').classList.remove('show');
+    document.getElementById('checkBtn').disabled = false;
+    document.getElementById('checkBtnIcon').textContent = '⚡';
+    document.getElementById('checkBtnText').textContent = 'Check';
+  }
+}
+
+async function fetchCheck(addr) {
+  const r = await fetch(`/api/check?address=${addr}`);
+  if (!r.ok) { const j = await r.json().catch(()=>({})); throw new Error(j.error || `HTTP ${r.status}`); }
+  return r.json();
+}
+
+function renderSingle(d) {
+  const t = d.tier;
+  const tc = TIER_CONFIG[t.color] || TIER_CONFIG.dim;
+
+  // Tier banner
+  const banner = document.getElementById('tierBanner');
+  banner.className = 'tier-banner ' + tc.bgClass;
+  document.getElementById('tierIcon').textContent = tc.icon;
+  const tlt = document.getElementById('tierLabelText');
+  tlt.className = 'tier-label-text ' + tc.textClass;
+  tlt.textContent = t.label;
+
+  const estEl = document.getElementById('tierEst');
+  estEl.className = 'tier-est ' + tc.textClass;
+  if (t.estMin === 0 && t.estMax === 0) {
+    estEl.innerHTML = '<span style="color:var(--text-muted)">Estimasi alokasi: —</span>';
+  } else {
+    estEl.innerHTML = `Estimasi: <strong>${t.estMin.toLocaleString()}–${t.estMax.toLocaleString()}</strong> $BASE <span style="color:var(--text-muted);font-size:10px">(spekulatif)</span>`;
+  }
+
+  // Sybil badge
+  const riskColors = { low:'var(--green)', medium:'var(--yellow)', high:'var(--red)' };
+  const riskText   = { low:'✅ LOW RISK', medium:'⚠️ MEDIUM', high:'🚨 HIGH RISK' };
+  document.getElementById('sybilBadge').innerHTML =
+    `<div class="risk-lbl" style="color:${riskColors[d.risk]}">${riskText[d.risk]}</div>
+     <div class="risk-sub">Sybil Score: ${d.score}/100</div>`;
+
+  // Address
+  document.getElementById('resultAddr').innerHTML =
+    `<a href="https://basescan.org/address/${d.address}" target="_blank">${d.address}</a>`;
+
+  // Score bar
+  const sc = d.score >= 65 ? 'var(--red)' : d.score >= 35 ? 'var(--yellow)' : 'var(--green)';
+  document.getElementById('scoreText').textContent = d.score + ' / 100';
+  document.getElementById('scoreText').style.color = sc;
+  document.getElementById('scoreBig').style.color = sc;
+  document.getElementById('scoreBig').textContent = d.score;
+  const fill = document.getElementById('scoreFill');
+  fill.style.background = sc; fill.style.boxShadow = `0 0 8px ${sc}`;
+  setTimeout(() => fill.style.width = d.score + '%', 50);
+
+  // Metrics
+  const m = d.data;
+  const metrics = [
+    { lbl:'Wallet Age',    val: m.walletAgeDays+'d', sub: m.walletAgeDays<30?'⚠ fresh':m.walletAgeDays<180?'moderate':'established', cls: m.walletAgeDays<30?'c-red':m.walletAgeDays<90?'c-yellow':'c-green' },
+    { lbl:'Total Txns',    val: m.txCount,           sub: 'all transactions',    cls: m.txCount<10?'c-red':m.txCount<50?'c-yellow':'c-green' },
+    { lbl:'Active Days',   val: m.activeDays,        sub: m.activeMonths+' months', cls: m.activeDays<5?'c-red':m.activeDays<20?'c-yellow':'c-green' },
+    { lbl:'Contracts',     val: m.uniqueContracts,   sub: 'unique interacted',   cls: m.uniqueContracts<3?'c-red':m.uniqueContracts<10?'c-yellow':'c-green' },
+    { lbl:'Token Types',   val: m.tokenDiversity,    sub: 'ERC-20 diversity',    cls: m.tokenDiversity<2?'c-red':m.tokenDiversity<5?'c-yellow':'c-green' },
+    { lbl:'ETH Balance',   val: parseFloat(m.ethBalance.toFixed(4)), sub: m.ethBalance<0.001?'⚠ dust':'ok', cls: m.ethBalance<0.001?'c-red':m.ethBalance<0.01?'c-yellow':'c-green' },
+  ];
+  document.getElementById('metricsGrid').innerHTML = metrics.map(mt =>
+    `<div class="metric"><div class="metric-lbl">${mt.lbl}</div><div class="metric-val ${mt.cls}">${mt.val}</div><div class="metric-sub">${mt.sub}</div></div>`
+  ).join('');
+
+  // Checklist
+  const cl = d.checklist;
+  const clPct = Math.round(cl.points / cl.maxPoints * 100);
+  document.getElementById('checklistSection').innerHTML = `
+    <div class="section-title">
+      Base Ecosystem Checklist
+      <span>${cl.done}/${cl.total} done · ${cl.points}/${cl.maxPoints} pts</span>
+    </div>
+    <div class="checklist-progress">
+      <div class="cl-prog-top">
+        <span class="left">Completion</span>
+        <span class="right">${clPct}%</span>
+      </div>
+      <div class="cl-bar-bg"><div class="cl-bar-fill" id="clBarFill" style="width:0%"></div></div>
+    </div>
+    <div class="checklist-grid">
+      ${cl.items.map(item => `
+        <div class="cl-item ${item.done ? 'done' : 'todo'}">
+          <div class="cl-check">${item.done ? '✓' : ''}</div>
+          <div class="cl-text">
+            <div class="cl-label">${item.label}</div>
+            <div class="cl-tip">${item.tip}</div>
+            <div class="cl-pts">${item.done ? '+' : ''}${item.points} pts</div>
+          </div>
+        </div>
+      `).join('')}
+    </div>`;
+  setTimeout(() => {
+    const bar = document.getElementById('clBarFill');
+    if (bar) bar.style.width = clPct + '%';
+  }, 100);
+
+  // Flags
+  const flagDescs = {
+    no_transactions:'No on-chain activity', fresh_wallet:'Wallet age <30 days',
+    low_tx_count:'<10 outgoing txns', low_active_days:'Active <5 days',
+    low_active_months:'Active <2 months', few_contracts:'<3 contracts interacted',
+    low_token_diversity:'<2 token types', dust_balance:'ETH balance near zero',
+    burst_activity:'Burst txn pattern', uniform_gas_price:'Same gas price (bot)',
+    self_transfer:'Self-transfer found', high_fail_rate:'High failed tx rate',
+  };
+  document.getElementById('flagsSection').innerHTML = `
+    <div class="section-title">Sybil Flags <span>${d.flags.length} detected</span></div>
+    <div class="flags-wrap">
+      ${d.flags.length > 0
+        ? d.flags.map(f=>`<span class="flag-chip" title="${flagDescs[f]||f}">${f}</span>`).join('')
+        : '<span class="flag-chip ok">✓ no flags detected</span>'}
+    </div>`;
+
+  // Extra
+  document.getElementById('extraRow').innerHTML = `
+    <div class="extra-item"><span>Funded by:</span><strong>${m.fundedBy ? m.fundedBy.slice(0,14)+'...' : '—'}</strong></div>
+    <div class="extra-item"><span>NFT contracts:</span><strong>${m.nftCount}</strong></div>
+    <div class="extra-item"><span>Failed txns:</span><strong>${m.failedTxns}</strong></div>
+    <div class="extra-item"><span>Self transfers:</span><strong>${m.selfTransfers}</strong></div>`;
+
+  document.getElementById('resultCard').classList.add('show');
+}
+
+// ── Batch ─────────────────────────────────────────────────────────────────────
+async function checkBatch() {
+  const addrs = parseAddrs(document.getElementById('batchInput').value);
+  if (addrs.length === 0) { showError('Tidak ada address valid.'); return; }
+  if (addrs.length > 50) { showError('Max 50 address per batch.'); return; }
+
+  batchResults = [];
+  document.getElementById('resultCard').classList.remove('show');
+  document.getElementById('batchResults').classList.remove('show');
+  document.getElementById('statsStrip').classList.remove('show');
+  document.getElementById('progressCard').classList.add('show');
+  document.getElementById('exportBtn').style.display = 'none';
+  document.getElementById('exportBtn2').style.display = 'none';
+
+  for (let i = 0; i < addrs.length; i++) {
+    document.getElementById('progBar').style.width = Math.round(i/addrs.length*100)+'%';
+    document.getElementById('progCount').textContent = `${i}/${addrs.length}`;
+    document.getElementById('progLog').textContent = addrs[i].slice(0,16)+'...';
+    try {
+      batchResults.push(await fetchCheck(addrs[i]));
+    } catch(e) {
+      batchResults.push({ address: addrs[i], score:-1, risk:'error', flags:['fetch_error'], error:true, tier:{label:'Error',estMin:0,estMax:0,color:'red'}, checklist:{done:0,total:14,points:0,maxPoints:165}, data:{} });
+    }
+    if (i < addrs.length-1) await sleep(700);
+  }
+
+  document.getElementById('progBar').style.width = '100%';
+  document.getElementById('progCount').textContent = `${addrs.length}/${addrs.length}`;
+  setTimeout(() => document.getElementById('progressCard').classList.remove('show'), 500);
+
+  renderBatchStats();
+  renderBatchTable();
+  document.getElementById('exportBtn').style.display = 'flex';
+  document.getElementById('exportBtn2').style.display = 'flex';
+}
+
+function renderBatchStats() {
+  const v = batchResults.filter(r=>!r.error);
+  document.getElementById('st-total').textContent = batchResults.length;
+  document.getElementById('st-pass').textContent = v.filter(r=>r.risk==='low').length;
+  document.getElementById('st-med').textContent = v.filter(r=>r.risk==='medium').length;
+  document.getElementById('st-high').textContent = v.filter(r=>r.risk==='high').length;
+  document.getElementById('statsStrip').classList.add('show');
+}
+
+function renderBatchTable() {
+  document.getElementById('batchResults').classList.add('show');
+  const tbody = document.getElementById('batchTableBody');
+  const filtered = filterMode==='all' ? batchResults : batchResults.filter(r=>r.risk===filterMode);
+  if (filtered.length===0) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:28px;color:var(--text-muted);font-family:var(--mono);font-size:11px">no results</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = filtered.map((r,i) => {
+    if (r.error) return `<tr><td class="c-dim">${i+1}</td><td class="addr-cell"><a href="https://basescan.org/address/${r.address}" target="_blank">${r.address.slice(0,8)}...${r.address.slice(-4)}</a></td><td colspan="7" style="color:var(--text-muted);font-size:10px">⚠ fetch failed</td></tr>`;
+    const m = r.data;
+    const sc = r.score>=65?'var(--red)':r.score>=35?'var(--yellow)':'var(--green)';
+    const tc = TIER_CONFIG[r.tier.color]||TIER_CONFIG.dim;
+    const est = r.tier.estMax>0 ? `${r.tier.estMin.toLocaleString()}–${r.tier.estMax.toLocaleString()}` : '—';
+    const clPct = Math.round(r.checklist.points/r.checklist.maxPoints*100);
+    return `<tr>
+      <td class="c-dim">${i+1}</td>
+      <td class="addr-cell"><a href="https://basescan.org/address/${r.address}" target="_blank">${r.address.slice(0,8)}...${r.address.slice(-4)}</a></td>
+      <td style="color:var(--${r.tier.color==='dim'?'text-dim':r.tier.color})">${tc.icon} ${r.tier.label.replace(/[🥇🥈🥉📋🚫❌]/,'').trim()}</td>
+      <td style="color:var(--${r.tier.color==='dim'?'text-dim':r.tier.color});font-weight:700">${est}</td>
+      <td><span class="risk-badge rb-${r.risk}">${r.risk.toUpperCase()}</span></td>
+      <td><div class="sbar"><div class="sbar-bg"><div class="sbar-fill" style="width:${r.score}%;background:${sc}"></div></div><span class="sbar-num" style="color:${sc}">${r.score}</span></div></td>
+      <td class="${m.walletAgeDays<30?'c-red':m.walletAgeDays<90?'c-yellow':'c-green'}">${m.walletAgeDays}d</td>
+      <td class="${m.txCount<10?'c-red':m.txCount<50?'c-yellow':'c-green'}">${m.txCount}</td>
+      <td style="color:var(--green)">${r.checklist.done}/${r.checklist.total} (${clPct}%)</td>
+    </tr>`;
+  }).join('');
+}
+
+function setFilter(mode, el) {
+  filterMode = mode;
+  document.querySelectorAll('.ftab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  if (batchResults.length>0) renderBatchTable();
+}
+
+function loadSample() {
+  document.getElementById('batchInput').value = [
+    '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045',
+    '0x4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97',
+    '0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5',
+  ].join('\n');
+}
+
+function exportCSV() {
+  if (batchResults.length===0) return;
+  const h = ['address','tier','est_min','est_max','risk','score','wallet_age_days','tx_count','active_days','active_months','unique_contracts','eth_balance','checklist_done','checklist_total','checklist_pts','flags'];
+  const rows = batchResults.map(r => {
+    if (r.error) return [r.address,'error','','','error','','','','','','','','','','','fetch_error'];
+    const m = r.data;
+    return [r.address,r.tier.label,r.tier.estMin,r.tier.estMax,r.risk,r.score,m.walletAgeDays,m.txCount,m.activeDays,m.activeMonths,m.uniqueContracts,m.ethBalance?.toFixed(6),r.checklist.done,r.checklist.total,r.checklist.points,r.flags.join('|')];
+  });
+  const csv = [h,...rows].map(r=>r.join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download = `base_sybil_${Date.now()}.csv`;
+  a.click();
+}
+</script>
+</body>
+</html>
